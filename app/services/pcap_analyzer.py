@@ -1,13 +1,16 @@
 from collections import Counter
 from datetime import datetime,timezone
 from pathlib import Path
-from scapy.utils import PcapReader
-from scapy.layers.inet import IP,TCP,UDP
-from scapy.layers.inet6 import IPv6
-from scapy.layers.dns import DNS,DNSQR
-from scapy.layers.l2 import Ether
 from app.config import MAX_ANALYSIS_RECORDS
 def analyze_pcap(path:Path):
+    try:
+        from scapy.utils import PcapReader
+        from scapy.layers.inet import IP,TCP,UDP
+        from scapy.layers.inet6 import IPv6
+        from scapy.layers.dns import DNS,DNSQR
+        from scapy.layers.l2 import Ether
+    except ImportError as e:
+        raise ValueError("PCAP analysis requires Scapy. Install dependencies with: pip install -r requirements.txt") from e
     protocols=Counter(); endpoints=Counter(); conversations=Counter(); dns=Counter(); first=last=None; count=0; truncated=False
     try:
         with PcapReader(str(path)) as reader:

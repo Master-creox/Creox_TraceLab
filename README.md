@@ -1,51 +1,85 @@
-# Creox TraceLab — Milestone 5: Command Dashboard
+# Creox TraceLab v1.0 — Unified Release
 
-Milestone 5 adds a responsive dark-themed web dashboard to the existing local-first forensic API. It includes case overview, evidence inventory, case observations, investigation timeline, report generation, and report viewing.
+**Creox TraceLab** is a local-first digital forensics investigation workbench by Creox Tech Labs. This unified release brings the functionality developed across Milestones 1–6 into one coherent application.
 
-## Requirements
-- Python 3.11+
-- Node.js 18+ (for Vite development frontend)
-- Existing API dependencies from `requirements.txt`
+## Included capabilities
+- Investigation case creation, status tracking, workspace view
+- Evidence acquisition, SHA-256 hashing, integrity verification
+- Evidence encryption at rest using Fernet; authenticated download decrypts and verifies plaintext
+- Offline PCAP metadata analysis and log analysis
+- Analyst observations and UTC-normalized event timeline
+- Investigation report generation with canonical JSON digest and HTML report view
+- JWT-style signed bearer sessions, PBKDF2 password hashing, Admin/Analyst roles
+- Hash-chained security audit events with verification endpoint
+- Backup-ready local `data/` storage, Docker and CI starter workflow
 
-## Run backend
+## Windows setup (PowerShell)
+
 ```powershell
 python -m venv .venv
-.venv\Scripts\Activate.ps1
+.\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
+Copy-Item .env.example .env
+```
+
+Generate and configure secrets:
+
+```powershell
+python -c "import secrets; print(secrets.token_urlsafe(48))"
+python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+```
+
+Put the first output into `TRACE_LAB_JWT_SECRET` and the second into `TRACE_LAB_EVIDENCE_KEY` in `.env`. Do not commit `.env`.
+
+Create the first admin:
+
+```powershell
+python scripts_create_admin.py --username admin --password "Use-A-Long-Unique-Password!"
+```
+
+Run backend:
+
+```powershell
 uvicorn app.main:app --reload
 ```
 
-## Run frontend
-Open a second terminal:
+Open `http://127.0.0.1:8000` for health and `http://127.0.0.1:8000/docs` for API documentation. Run frontend in a second terminal:
+
 ```powershell
 cd frontend
 npm install
 npm run dev
 ```
-Open the Vite URL shown in the terminal (normally http://localhost:5173).
 
-The Vite development server proxies `/api` and `/health` to `http://127.0.0.1:8000`.
+Open the Vite URL shown in terminal (normally `http://localhost:5173`) and sign in with the admin credentials.
 
-## Production frontend build
-```powershell
-cd frontend
-npm run build
+## Create analyst accounts
+Sign in through Swagger or the dashboard, then use `POST /api/v1/admin/users` with an admin bearer token:
+
+```json
+{"username":"analyst1","password":"Use-Another-Long-Password!","role":"analyst"}
 ```
-The build output is `frontend/dist`. This milestone keeps frontend and API as separate processes; configure a trusted reverse proxy before production deployment.
 
-## Dashboard capabilities
-- Case list and case selection.
-- Create case.
-- Case status and priority display.
-- Evidence upload to the selected case.
-- Evidence SHA-256 and integrity status.
-- Run offline log or PCAP analysis.
-- Add analyst observations.
-- Add timeline events and show UTC timeline.
-- Generate and inspect HTML forensic reports.
-- API health indicator.
+## Security endpoints
+- `GET /api/v1/security/me` — current session
+- `GET /api/v1/security/audit` — admin-only security audit
+- `GET /api/v1/security/audit/verify` — verify hash chain
+- `GET /api/v1/evidence/{id}/download` — authenticated decrypted download with plaintext SHA-256 check
 
-## Security notes
-This dashboard is a local development interface. It does not include user authentication or role-based access control. Keep the API bound to localhost and do not expose it to the internet or an untrusted network. Use only evidence you are authorized to examine. Before multi-user use, add authentication, authorization, CSRF protections as appropriate, strict CORS, secure session handling, encrypted storage, backups, retention controls, and deployment hardening.
+## Backup and restore
 
-The report generator creates HTML content for review/printing. Do not treat a report digest as a digital signature or legal certification.
+```powershell
+python -m scripts.backup --output backups
+python -m scripts.restore --archive backups\tracelab-YYYYMMDD-HHMMSS.zip --destination restore_test
+```
+
+The archive contains the SQLite database and encrypted evidence files, but not `.env` secrets. Keep the Fernet key backed up separately in a secure password manager or secrets vault; without it, evidence cannot be decrypted.
+
+## Important data migration note
+This unified v1.0 uses the SQLite database and encrypted evidence storage under `data/`. **Do not copy an older milestone database/evidence folder directly into this release.** Older milestone evidence files were not encrypted. Export reports and preserve old project folders separately; if migrating existing cases, use a documented migration utility and verify every original SHA-256 before importing.
+
+## Production readiness
+This is a portfolio/development release, not a certified forensic platform. Before real legal or operational use, obtain an independent security review; use HTTPS, a managed secret store/KMS, MFA, rate limiting, immutable external audit checkpoints, access logging, backup/restore drills, retention policy, and documented chain-of-custody procedures. Hash chaining is tamper-evident but not immutable if an attacker can rewrite the database and recompute the chain. Fernet key loss means evidence cannot be decrypted. Keep encrypted backups and keys separately secured.
+
+## License
+Add a license before public distribution. Use only on systems and evidence you are authorized to investigate.

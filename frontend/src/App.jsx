@@ -7,8 +7,12 @@ import {
 } from "lucide-react";
 
 const api = async (url, options={}) => {
-  const response = await fetch(url, options);
+  const token = localStorage.getItem("tracelab_token");
+  const headers = new Headers(options.headers || {});
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+  const response = await fetch(url, { ...options, headers });
   const data = await response.json().catch(() => ({}));
+  if (response.status === 401 && url !== "/api/v1/auth/login") localStorage.removeItem("tracelab_token");
   if (!response.ok) throw new Error(data.detail || `Request failed (${response.status})`);
   return data;
 };
@@ -16,6 +20,9 @@ const fmtDate = value => value ? new Date(value).toLocaleString() : "—";
 const bytes = n => n < 1024 ? `${n} B` : n < 1048576 ? `${(n/1024).toFixed(1)} KB` : `${(n/1048576).toFixed(2)} MB`;
 
 function App() {
+  const [token,setToken]=useState(()=>localStorage.getItem("tracelab_token")||"");
+  const [loginForm,setLoginForm]=useState({username:"",password:""});
+  const [loginError,setLoginError]=useState("");
   const [cases,setCases]=useState([]), [selected,setSelected]=useState("");
   const [workspace,setWorkspace]=useState(null), [health,setHealth]=useState("checking");
   const [loading,setLoading]=useState(false), [busy,setBusy]=useState(""), [error,setError]=useState("");
@@ -36,7 +43,7 @@ function App() {
     catch(e){setError(e.message);setWorkspace(null);}
     finally{setLoading(false);}
   };
-  useEffect(()=>{loadCases();},[]);
+  useEffect(()=>{if(token)loadCases();},[token]);
   useEffect(()=>{if(selected)loadWorkspace(selected);},[selected]);
   const notify=msg=>{setToast(msg);window.setTimeout(()=>setToast(""),3200);};
   const run=async(label,fn)=>{
@@ -74,9 +81,11 @@ function App() {
   const openReport=()=>{if(!report)return;const w=window.open("","_blank");if(!w){setError("Popup blocked. Allow popups to view the report.");return;}w.document.open();w.document.write(report.html);w.document.close();};
   const statusClass=s=>s==="intact"||s==="verified_at_acquisition"?"good":s==="mismatch"||s==="missing"?"bad":"neutral";
 
+  const signIn=async e=>{e.preventDefault();setLoginError("");try{const body=new URLSearchParams();body.set("username",loginForm.username);body.set("password",loginForm.password);const result=await api("/api/v1/auth/login",{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded"},body});localStorage.setItem("tracelab_token",result.access_token);setToken(result.access_token);}catch(err){setLoginError(err.message);}};
+  if(!token) return <div className="login-screen"><form className="login-card" onSubmit={signIn}><div className="brand-mark"><Fingerprint size={28}/></div><p className="eyebrow">CREOX TECH LABS · DIGITAL FORENSICS</p><h1>TraceLab <span>v1.0</span></h1><p className="muted">Sign in to your secure investigation workspace.</p><label>Username<input required autoComplete="username" value={loginForm.username} onChange={e=>setLoginForm({...loginForm,username:e.target.value})}/></label><label>Password<input required type="password" autoComplete="current-password" value={loginForm.password} onChange={e=>setLoginForm({...loginForm,password:e.target.value})}/></label>{loginError&&<div className="alert">{loginError}</div>}<button className="primary" type="submit">Sign in securely</button><small>Administrator account is created once during local setup.</small></form></div>;
   return <div className="shell">
     <aside className="sidebar">
-      <div className="brand"><div className="brand-mark"><Fingerprint size={23}/></div><div><b>CREOX</b><span>TRACELAB <i>v0.5</i></span></div></div>
+      <div className="brand"><div className="brand-mark"><Fingerprint size={23}/></div><div><b>CREOX</b><span>TRACELAB <i>v1.0</i></span></div></div>
       <div className="side-label">WORKSPACE</div>
       <button className="nav active"><LayoutDashboard size={17}/> Command dashboard</button>
       <button className="nav" onClick={()=>setModal("case")}><BriefcaseBusiness size={17}/> New investigation <Plus size={15} className="nav-end"/></button>
@@ -84,7 +93,7 @@ function App() {
       <div className="case-search"><Search size={14}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Find a case..."/></div>
       <div className="case-list">{filteredCases.map(c=><button key={c.case_id} className={`case-link ${selected===c.case_id?"selected":""}`} onClick={()=>setSelected(c.case_id)}><span className="case-dot"/><span className="case-link-text"><b>{c.case_id}</b><small>{c.title}</small></span><ChevronRight size={14}/></button>)}
       {!filteredCases.length&&<p className="muted small pad">No matching cases</p>}</div>
-      <div className="sidebar-bottom"><div className="local-card"><ShieldCheck size={18}/><div><b>Local evidence vault</b><small>Evidence stays on this machine</small></div><span className="pulse"/></div><div className="owner"><div className="avatar">MC</div><div><b>Master Creox</b><small>Investigation workspace</small></div></div></div>
+      <div className="sidebar-bottom"><div className="local-card"><ShieldCheck size={18}/><div><b>Local evidence vault</b><small>Evidence stays on this machine</small></div><span className="pulse"/></div><div className="owner"><div className="avatar">MC</div><div><b>Secure session</b><small>Authenticated workspace</small></div><button title="Sign out" onClick={()=>{localStorage.removeItem("tracelab_token");setToken("");setCases([]);setWorkspace(null);}}>↪</button></div></div>
     </aside>
 
     <main className="main">
