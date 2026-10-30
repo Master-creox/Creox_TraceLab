@@ -1,84 +1,48 @@
-# Creox TraceLab — Milestone 3: Case Investigation
+# Creox TraceLab — Milestone 4: Forensic Report Generator
 
-A local-first digital-forensics workbench. This release combines the Evidence Vault, offline artifact analysis, and case investigation management.
+Milestone 4 adds reproducible case reports to TraceLab. It retains the evidence vault, offline PCAP/log analysis, case workspace, observations, and timeline from earlier milestones.
 
-## Milestone 3 features
-- Create and list investigation cases.
-- View case details and linked evidence.
-- Add analyst observations linked to a case and optionally to evidence.
-- Add timeline events with source timestamps and normalized UTC timestamps.
-- Link evidence to timeline events.
-- Filter timeline by case and sort chronologically.
-- Audit case, observation, and timeline operations.
-- Retains Milestone 1 evidence upload/hash/verification and Milestone 2 offline log/PCAP analysis.
+## Features
+- Generate a point-in-time JSON report for a case.
+- Generate a self-contained HTML report for review and printing to PDF from a browser.
+- Include case metadata, evidence inventory, SHA-256 digests, latest integrity status, analysis summaries, analyst observations, and UTC timeline.
+- Include a SHA-256 manifest for the canonical JSON report payload.
+- Store report metadata and report payload snapshots in SQLite.
+- Record report generation in the audit log.
+- Retrieve previously generated report snapshots by report ID.
 
-## Install
-Python 3.11+ recommended.
-
+## Run
+Python 3.11+:
 ```powershell
 python -m venv .venv
 .venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
-
-Linux/macOS: `source .venv/bin/activate`
+Linux/macOS activation: `source .venv/bin/activate`
 
 Open http://127.0.0.1:8000/docs
 
-## API workflow
-1. Create a case: `POST /api/v1/cases`
-2. Upload evidence using its `case_id`: `POST /api/v1/evidence`
-3. Add an observation: `POST /api/v1/cases/{case_id}/observations`
-4. Add a timeline event: `POST /api/v1/cases/{case_id}/timeline`
-5. View the case workspace: `GET /api/v1/cases/{case_id}`
-6. View chronological timeline: `GET /api/v1/cases/{case_id}/timeline`
+## Generate a report
+`POST /api/v1/cases/{case_id}/reports`
 
-### Create a case JSON
-```json
-{
-  "case_id": "CASE-2026-001",
-  "title": "Suspicious workstation activity",
-  "description": "Authorized internal investigation",
-  "priority": "medium"
-}
+Example:
+```bash
+curl -X POST http://127.0.0.1:8000/api/v1/cases/CASE-001/reports \
+  -H "Content-Type: application/json" \
+  -d '{"title":"CASE-001 Investigation Report","include_analysis":true}'
 ```
 
-### Add an observation JSON
-```json
-{
-  "title": "Repeated authentication failures",
-  "content": "The supplied log contains multiple failed sign-in events.",
-  "classification": "observation",
-  "evidence_id": 1
-}
-```
+The response includes a report ID, JSON payload, SHA-256 digest, and HTML report. Save the HTML as a `.html` file and open it in a browser; use Print → Save as PDF to create a PDF copy.
 
-### Add a timeline event JSON
-```json
-{
-  "title": "First recorded failed login",
-  "details": "Timestamp extracted from the supplied authentication log.",
-  "event_time": "2026-10-30T08:15:00+05:30",
-  "event_type": "log_event",
-  "evidence_id": 1
-}
-```
+Retrieve a stored snapshot:
+`GET /api/v1/reports/{report_id}`
 
-## API overview
-- `POST /api/v1/cases` — create case
-- `GET /api/v1/cases` — list cases
-- `GET /api/v1/cases/{case_id}` — case workspace and linked records
-- `POST /api/v1/cases/{case_id}/observations` — add analyst observation
-- `GET /api/v1/cases/{case_id}/observations` — list observations
-- `POST /api/v1/cases/{case_id}/timeline` — add timeline event
-- `GET /api/v1/cases/{case_id}/timeline` — chronological timeline
-- `POST /api/v1/evidence` — acquire evidence, calculate SHA-256
-- `POST /api/v1/evidence/{id}/verify` — verify evidence integrity
-- `POST /api/v1/evidence/{id}/analyze/logs` — offline log analysis
-- `POST /api/v1/evidence/{id}/analyze/pcap` — offline PCAP analysis
-- `GET /api/v1/evidence/{id}/analyses` — saved analysis results
-- `GET /api/v1/audit` — audit events
+List case reports:
+`GET /api/v1/cases/{case_id}/reports`
+
+## Report integrity
+The report digest is SHA-256 over canonical JSON (`sort_keys=True`, compact separators, UTF-8). The digest detects later changes to the payload when recomputed. It does not certify the truth of findings, prove source authenticity, or create a legally sufficient chain of custody by itself.
 
 ## Important limitations
-This is an investigative aid, not a validated forensic suite. It does not prove source authenticity or establish a legally sufficient chain of custody by itself. Store authorized evidence only, preserve originals, work from verified copies, document acquisition procedures, and independently validate findings. Keep the API bound to localhost; authentication, authorization, encryption at rest, backup/retention controls, and hardened deployment are still required before multi-user or network exposure.
+This is an investigative aid, not a validated forensic suite. Reports are snapshots at generation time; generate a new report after adding or changing case material. This implementation stores report payloads in SQLite. Authentication, authorization, access controls, encrypted storage, backup/retention policy, signed reports, and hardened deployment remain necessary before multi-user or public-network use. Work only with evidence you are authorized to examine.

@@ -1,6 +1,5 @@
 import os
 from pathlib import Path
-
 BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = Path(os.getenv("TRACE_LAB_DATA_DIR", str(BASE_DIR / "data"))).resolve()
 EVIDENCE_DIR = DATA_DIR / "evidence"

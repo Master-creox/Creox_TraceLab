@@ -1,15 +1,14 @@
 from collections import Counter
-from datetime import datetime, timezone
+from datetime import datetime,timezone
 from pathlib import Path
 from scapy.utils import PcapReader
-from scapy.layers.inet import IP, TCP, UDP
+from scapy.layers.inet import IP,TCP,UDP
 from scapy.layers.inet6 import IPv6
-from scapy.layers.dns import DNS, DNSQR
+from scapy.layers.dns import DNS,DNSQR
 from scapy.layers.l2 import Ether
 from app.config import MAX_ANALYSIS_RECORDS
-def analyze_pcap(path: Path):
-    protocols=Counter(); endpoints=Counter(); conversations=Counter(); dns=Counter()
-    first=last=None; count=0; truncated=False
+def analyze_pcap(path:Path):
+    protocols=Counter(); endpoints=Counter(); conversations=Counter(); dns=Counter(); first=last=None; count=0; truncated=False
     try:
         with PcapReader(str(path)) as reader:
             for pkt in reader:
@@ -27,8 +26,7 @@ def analyze_pcap(path: Path):
                 if src: endpoints[src]+=1
                 if dst: endpoints[dst]+=1
                 if src and dst:
-                    a,b=sorted([f"{src}:{sport or 0}",f"{dst}:{dport or 0}"])
-                    conversations[f"{a} <-> {b} ({proto})"]+=1
+                    a,b=sorted([f"{src}:{sport or 0}",f"{dst}:{dport or 0}"]); conversations[f"{a} <-> {b} ({proto})"]+=1
                 _qd = pkt[DNS].qd if DNS in pkt else None
                 if isinstance(_qd, (list, tuple)):
                     _qd = _qd[0] if _qd else None
@@ -37,11 +35,4 @@ def analyze_pcap(path: Path):
                     if isinstance(q,bytes): q=q.decode("utf-8",errors="replace")
                     dns[str(q).rstrip(".")]+=1
     except Exception as exc: raise ValueError(f"Unable to parse capture: {type(exc).__name__}: {exc}") from exc
-    return {"parser":"tracelab-pcap-parser-v1","packets":count,"truncated":truncated,
-            "protocols":dict(protocols.most_common()),
-            "top_endpoints":[{"address":k,"packet_references":v} for k,v in endpoints.most_common(20)],
-            "top_conversations":[{"conversation":k,"packets":v} for k,v in conversations.most_common(20)],
-            "dns_queries":[{"query":k,"count":v} for k,v in dns.most_common(100)],
-            "time_range_utc":{"first":first,"last":last},
-            "notes":["Offline metadata analysis only; packet payloads are not exported.",
-                     "Endpoint counts count source and destination appearances."]}
+    return {"parser":"tracelab-pcap-parser-v1","packets":count,"truncated":truncated,"protocols":dict(protocols.most_common()),"top_endpoints":[{"address":k,"packet_references":v} for k,v in endpoints.most_common(20)],"top_conversations":[{"conversation":k,"packets":v} for k,v in conversations.most_common(20)],"dns_queries":[{"query":k,"count":v} for k,v in dns.most_common(100)],"time_range_utc":{"first":first,"last":last},"notes":["Offline metadata analysis only; packet payloads are not exported.","Endpoint counts count source and destination appearances."]}
