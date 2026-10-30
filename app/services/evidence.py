@@ -6,6 +6,8 @@ from app.config import EVIDENCE_DIR,MAX_UPLOAD_MB,CHUNK_SIZE
 from app.database import get_db,utc_now
 
 def _fernet():
+    from app.dotenv import load_dotenv
+    load_dotenv()
     key=os.getenv("TRACE_LAB_EVIDENCE_KEY", "")
     if not key: raise HTTPException(500,"TRACE_LAB_EVIDENCE_KEY is not configured")
     try: return Fernet(key.encode())

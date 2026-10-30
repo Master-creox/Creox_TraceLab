@@ -7,6 +7,8 @@ from app.database import get_db, utc_now
 bearer = HTTPBearer(auto_error=False)
 
 def _secret():
+    from app.dotenv import load_dotenv
+    load_dotenv()
     value=os.getenv("TRACE_LAB_JWT_SECRET", "")
     if len(value)<32:
         raise RuntimeError("Set TRACE_LAB_JWT_SECRET (32+ random characters) in .env")
