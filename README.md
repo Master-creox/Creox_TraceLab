@@ -1,48 +1,51 @@
-# Creox TraceLab — Milestone 4: Forensic Report Generator
+# Creox TraceLab — Milestone 5: Command Dashboard
 
-Milestone 4 adds reproducible case reports to TraceLab. It retains the evidence vault, offline PCAP/log analysis, case workspace, observations, and timeline from earlier milestones.
+Milestone 5 adds a responsive dark-themed web dashboard to the existing local-first forensic API. It includes case overview, evidence inventory, case observations, investigation timeline, report generation, and report viewing.
 
-## Features
-- Generate a point-in-time JSON report for a case.
-- Generate a self-contained HTML report for review and printing to PDF from a browser.
-- Include case metadata, evidence inventory, SHA-256 digests, latest integrity status, analysis summaries, analyst observations, and UTC timeline.
-- Include a SHA-256 manifest for the canonical JSON report payload.
-- Store report metadata and report payload snapshots in SQLite.
-- Record report generation in the audit log.
-- Retrieve previously generated report snapshots by report ID.
+## Requirements
+- Python 3.11+
+- Node.js 18+ (for Vite development frontend)
+- Existing API dependencies from `requirements.txt`
 
-## Run
-Python 3.11+:
+## Run backend
 ```powershell
 python -m venv .venv
 .venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
-Linux/macOS activation: `source .venv/bin/activate`
 
-Open http://127.0.0.1:8000/docs
-
-## Generate a report
-`POST /api/v1/cases/{case_id}/reports`
-
-Example:
-```bash
-curl -X POST http://127.0.0.1:8000/api/v1/cases/CASE-001/reports \
-  -H "Content-Type: application/json" \
-  -d '{"title":"CASE-001 Investigation Report","include_analysis":true}'
+## Run frontend
+Open a second terminal:
+```powershell
+cd frontend
+npm install
+npm run dev
 ```
+Open the Vite URL shown in the terminal (normally http://localhost:5173).
 
-The response includes a report ID, JSON payload, SHA-256 digest, and HTML report. Save the HTML as a `.html` file and open it in a browser; use Print → Save as PDF to create a PDF copy.
+The Vite development server proxies `/api` and `/health` to `http://127.0.0.1:8000`.
 
-Retrieve a stored snapshot:
-`GET /api/v1/reports/{report_id}`
+## Production frontend build
+```powershell
+cd frontend
+npm run build
+```
+The build output is `frontend/dist`. This milestone keeps frontend and API as separate processes; configure a trusted reverse proxy before production deployment.
 
-List case reports:
-`GET /api/v1/cases/{case_id}/reports`
+## Dashboard capabilities
+- Case list and case selection.
+- Create case.
+- Case status and priority display.
+- Evidence upload to the selected case.
+- Evidence SHA-256 and integrity status.
+- Run offline log or PCAP analysis.
+- Add analyst observations.
+- Add timeline events and show UTC timeline.
+- Generate and inspect HTML forensic reports.
+- API health indicator.
 
-## Report integrity
-The report digest is SHA-256 over canonical JSON (`sort_keys=True`, compact separators, UTF-8). The digest detects later changes to the payload when recomputed. It does not certify the truth of findings, prove source authenticity, or create a legally sufficient chain of custody by itself.
+## Security notes
+This dashboard is a local development interface. It does not include user authentication or role-based access control. Keep the API bound to localhost and do not expose it to the internet or an untrusted network. Use only evidence you are authorized to examine. Before multi-user use, add authentication, authorization, CSRF protections as appropriate, strict CORS, secure session handling, encrypted storage, backups, retention controls, and deployment hardening.
 
-## Important limitations
-This is an investigative aid, not a validated forensic suite. Reports are snapshots at generation time; generate a new report after adding or changing case material. This implementation stores report payloads in SQLite. Authentication, authorization, access controls, encrypted storage, backup/retention policy, signed reports, and hardened deployment remain necessary before multi-user or public-network use. Work only with evidence you are authorized to examine.
+The report generator creates HTML content for review/printing. Do not treat a report digest as a digital signature or legal certification.
