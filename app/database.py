@@ -1,17 +1,25 @@
 import sqlite3
 from contextlib import contextmanager
-from datetime import datetime, timezone
 from app.config import DATA_DIR, DB_PATH
 
-def utc_now() -> str:
+def utc_now():
+    from datetime import datetime, timezone
     return datetime.now(timezone.utc).isoformat()
 
-def init_db() -> None:
+def init_db():
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     with sqlite3.connect(DB_PATH) as conn:
-        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA journal_mode=WAL")
         conn.executescript("""
-        PRAGMA journal_mode=WAL;
+        CREATE TABLE IF NOT EXISTS cases (
+            case_id TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            description TEXT NOT NULL DEFAULT '',
+            priority TEXT NOT NULL DEFAULT 'medium',
+            status TEXT NOT NULL DEFAULT 'open',
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
         CREATE TABLE IF NOT EXISTS evidence (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             evidence_uuid TEXT NOT NULL UNIQUE,
@@ -23,7 +31,8 @@ def init_db() -> None:
             sha256 TEXT NOT NULL,
             description TEXT NOT NULL DEFAULT '',
             acquired_at TEXT NOT NULL,
-            integrity_status TEXT NOT NULL DEFAULT 'not_checked'
+            integrity_status TEXT NOT NULL DEFAULT 'not_checked',
+            FOREIGN KEY(case_id) REFERENCES cases(case_id)
         );
         CREATE TABLE IF NOT EXISTS audit_events (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -39,6 +48,31 @@ def init_db() -> None:
             analysis_type TEXT NOT NULL,
             created_at TEXT NOT NULL,
             result_json TEXT NOT NULL,
+            FOREIGN KEY(evidence_id) REFERENCES evidence(id)
+        );
+        CREATE TABLE IF NOT EXISTS observations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            case_id TEXT NOT NULL,
+            evidence_id INTEGER,
+            title TEXT NOT NULL,
+            content TEXT NOT NULL,
+            classification TEXT NOT NULL DEFAULT 'observation',
+            created_at TEXT NOT NULL,
+            FOREIGN KEY(case_id) REFERENCES cases(case_id),
+            FOREIGN KEY(evidence_id) REFERENCES evidence(id)
+        );
+        CREATE TABLE IF NOT EXISTS timeline_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            case_id TEXT NOT NULL,
+            evidence_id INTEGER,
+            title TEXT NOT NULL,
+            details TEXT NOT NULL DEFAULT '',
+            event_type TEXT NOT NULL DEFAULT 'analyst_event',
+            source_time TEXT NOT NULL,
+            event_time_utc TEXT NOT NULL,
+            timezone_assumed_utc INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY(case_id) REFERENCES cases(case_id),
             FOREIGN KEY(evidence_id) REFERENCES evidence(id)
         );
         """)

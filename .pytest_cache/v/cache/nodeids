@@ -1,0 +1,4 @@
+[
+  "tests/test_milestone3.py::test_case_observation_timeline_and_evidence",
+  "tests/test_milestone3.py::test_reject_evidence_linked_from_other_case"
+]
