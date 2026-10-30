@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, ConfigDict
 
 class EvidenceOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -27,3 +27,10 @@ class AuditEventOut(BaseModel):
     evidence_id: int | None
     timestamp: str
     details_json: str
+
+class AnalysisOut(BaseModel):
+    id: int
+    evidence_id: int
+    analysis_type: str
+    created_at: str
+    result: dict

@@ -33,6 +33,14 @@ def init_db() -> None:
             details_json TEXT NOT NULL,
             FOREIGN KEY(evidence_id) REFERENCES evidence(id)
         );
+        CREATE TABLE IF NOT EXISTS analysis_results (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            evidence_id INTEGER NOT NULL,
+            analysis_type TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            result_json TEXT NOT NULL,
+            FOREIGN KEY(evidence_id) REFERENCES evidence(id)
+        );
         """)
         conn.commit()
 

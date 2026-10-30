@@ -1,100 +1,68 @@
-# Creox TraceLab
+# Creox TraceLab — Milestone 2
 
-A local-first digital forensics workbench for evidence acquisition, SHA-256 integrity verification, audit events, and repeatable investigations.
+Local-first digital forensics workbench. This release includes Milestone 1 (Evidence Vault) plus Milestone 2 (offline PCAP and log analysis).
 
-## Milestone 1: Evidence Vault API
-
-### Features
-- Register evidence by uploading a file.
-- Stream file contents to disk while calculating SHA-256 and byte size.
-- Store evidence metadata in SQLite.
-- Append audit events for acquisition and verification.
-- Verify an evidence file against its recorded digest.
-- List evidence and retrieve its metadata.
-- Local operation; no external AI or cloud service required.
-
-> **Forensic note:** This prototype records acquisition metadata and hashes, but does not by itself establish legal chain of custody, prove the original source was authentic, or replace a validated forensic acquisition process. Use copies of evidence, document handling procedures, and restrict access to the evidence directory.
+## What's new in Milestone 2
+- Analyze previously acquired PCAP/PCAPNG evidence offline using Scapy.
+- Extract packet counts, protocol distribution, endpoint pairs, DNS queries, TCP conversations, and capture time range.
+- Parse common syslog-style, ISO timestamped, and Apache/Nginx access logs.
+- Normalize timestamps to UTC where timezone information is available; naive timestamps are explicitly treated as UTC for consistency and flagged in the output.
+- Produce deterministic JSON analysis results linked to evidence IDs.
+- Record analysis actions in the audit log.
+- No live packet capture, scanning, or external network connections.
 
 ## Requirements
 - Python 3.11+
 - Windows, Linux, or macOS
 
-## Run locally
-
-```bash
+## Install and run
+```powershell
 python -m venv .venv
-# Windows PowerShell:
 .venv\Scripts\Activate.ps1
-# Linux/macOS:
-# source .venv/bin/activate
-
 pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
+Linux/macOS activation: `source .venv/bin/activate`
 
-Open http://127.0.0.1:8000/docs for interactive API documentation.
+Open `http://127.0.0.1:8000/docs`.
+
+## Workflow
+1. Upload a PCAP or log file to `POST /api/v1/evidence`.
+2. Analyze PCAP evidence: `POST /api/v1/evidence/{id}/analyze/pcap`.
+3. Analyze log evidence: `POST /api/v1/evidence/{id}/analyze/logs`.
+4. Retrieve saved analysis: `GET /api/v1/evidence/{id}/analyses`.
+5. Verify file integrity: `POST /api/v1/evidence/{id}/verify`.
+
+The analysis endpoints read only from the evidence vault; they do not modify original evidence.
+
+## Supported log formats
+- ISO-8601 timestamps followed by optional level and message.
+- Syslog: `Jan  2 15:04:05 hostname process[123]: message` (year is not present; current UTC year is used and noted).
+- Apache/Nginx combined/common access log lines.
+- Unrecognized lines are retained as unparsed records with line numbers, not silently discarded.
+
+## PCAP details
+PCAP parsing uses Scapy's offline reader. It does not transmit packets or perform live capture. Packet payloads are not exported. The report contains metadata and selected protocol fields only. Malformed or unsupported capture files return a clear client error.
 
 ## API quick start
-
-Upload a file:
+Upload evidence:
 ```bash
-curl -X POST "http://127.0.0.1:8000/api/v1/evidence" \
-  -F "file=@sample.log" \
-  -F "case_id=CASE-001" \
-  -F "description=Sample system log"
+curl -X POST http://127.0.0.1:8000/api/v1/evidence -F "file=@sample.pcap" -F "case_id=CASE-001"
 ```
-
-List evidence:
+Analyze:
 ```bash
-curl "http://127.0.0.1:8000/api/v1/evidence"
+curl -X POST http://127.0.0.1:8000/api/v1/evidence/1/analyze/pcap
+curl -X POST http://127.0.0.1:8000/api/v1/evidence/2/analyze/logs
 ```
-
-Verify integrity:
+List analyses:
 ```bash
-curl -X POST "http://127.0.0.1:8000/api/v1/evidence/1/verify"
+curl http://127.0.0.1:8000/api/v1/evidence/1/analyses
 ```
 
-Fetch audit events:
+## Tests
 ```bash
-curl "http://127.0.0.1:8000/api/v1/audit"
+pytest -q
 ```
 
-## Configuration
-Environment variables:
-- `TRACE_LAB_DATA_DIR`: data directory (default `./data`)
-- `TRACE_LAB_MAX_UPLOAD_MB`: maximum upload size in MiB (default `100`)
-
-## Project structure
-
-```text
-creox-tracelab/
-├── app/
-│   ├── __init__.py
-│   ├── main.py
-│   ├── config.py
-│   ├── database.py
-│   ├── models.py
-│   ├── schemas.py
-│   └── services/
-│       ├── __init__.py
-│       └── evidence.py
-├── tests/
-│   └── test_api.py
-├── .gitignore
-├── requirements.txt
-└── README.md
-```
-
-## Milestones
-1. **Evidence Vault API** — upload, hash, metadata, verification, audit log. (Included)
-2. **Artifact Analysis** — offline PCAP metadata and log parsers with fixture-based tests.
-3. **Case Timeline** — case records, observations, timestamp normalization, evidence relationships.
-4. **Reporting** — JSON and HTML reports, integrity manifest, clear fact/inference labels.
-5. **Dashboard & hardening** — React dashboard, authentication, role permissions, retention controls, backups, packaging, CI.
-
-## Safety and security
-- Run on localhost until authentication and authorization are added.
-- Do not expose the API to the public internet as-is.
-- Evidence is potentially sensitive. Use authorized evidence only and protect backups.
-- Uploaded files are stored under generated IDs, not user-supplied filenames.
-- This first milestone accepts files as evidence but does not execute or open them.
+## Important limitations
+This is an investigative aid, not a validated forensic suite. It does not prove source authenticity, preserve a legally sufficient chain of custody by itself, decrypt TLS, reconstruct complete sessions, or identify an attacker. Validate findings against original evidence and document analyst actions. Keep the service bound to localhost until authentication, authorization, upload hardening, and deployment security are implemented.

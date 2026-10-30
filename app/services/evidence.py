@@ -1,6 +1,5 @@
 import hashlib
 import json
-import os
 import uuid
 from pathlib import Path
 from fastapi import UploadFile, HTTPException
@@ -18,7 +17,6 @@ async def acquire_evidence(file: UploadFile, case_id: str, description: str) -> 
         raise HTTPException(status_code=422, detail="case_id must not be empty")
     if not file.filename or Path(file.filename).name in ("", ".", ".."):
         raise HTTPException(status_code=400, detail="A valid filename is required")
-
     EVIDENCE_DIR.mkdir(parents=True, exist_ok=True)
     evidence_uuid = str(uuid.uuid4())
     stored_filename = f"{evidence_uuid}.bin"
@@ -26,7 +24,6 @@ async def acquire_evidence(file: UploadFile, case_id: str, description: str) -> 
     digest = hashlib.sha256()
     total = 0
     max_bytes = MAX_UPLOAD_MB * 1024 * 1024
-
     try:
         with target.open("xb") as output:
             while True:
@@ -77,6 +74,9 @@ def get_evidence(evidence_id: int) -> dict:
             raise HTTPException(status_code=404, detail="Evidence not found")
         return dict(row)
 
+def evidence_path(record: dict) -> Path:
+    return EVIDENCE_DIR / record["stored_filename"]
+
 def verify_evidence(evidence_id: int) -> dict:
     EVIDENCE_DIR.mkdir(parents=True, exist_ok=True)
     with get_db() as conn:
@@ -86,8 +86,7 @@ def verify_evidence(evidence_id: int) -> dict:
         target = EVIDENCE_DIR / row["stored_filename"]
         checked_at = utc_now()
         if not target.is_file():
-            actual = "MISSING"
-            match = False
+            actual, match = "MISSING", False
         else:
             digest = hashlib.sha256()
             with target.open("rb") as source:
@@ -101,15 +100,11 @@ def verify_evidence(evidence_id: int) -> dict:
             "expected_sha256": row["sha256"], "actual_sha256": actual,
             "match": match, "status": status
         })
-        return {
-            "evidence_id": evidence_id, "expected_sha256": row["sha256"],
-            "actual_sha256": actual, "match": match, "checked_at": checked_at,
-            "status": status
-        }
+        return {"evidence_id": evidence_id, "expected_sha256": row["sha256"],
+                "actual_sha256": actual, "match": match, "checked_at": checked_at, "status": status}
 
 def list_audit(limit: int = 100) -> list[dict]:
     with get_db() as conn:
-        rows = conn.execute(
-            "SELECT * FROM audit_events ORDER BY id DESC LIMIT ?", (min(max(limit, 1), 500),)
-        ).fetchall()
+        rows = conn.execute("SELECT * FROM audit_events ORDER BY id DESC LIMIT ?",
+                            (min(max(limit, 1), 500),)).fetchall()
         return [dict(row) for row in rows]
