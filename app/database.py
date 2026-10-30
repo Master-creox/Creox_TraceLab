@@ -18,6 +18,8 @@ def init_db():
         CREATE TABLE IF NOT EXISTS observations(id INTEGER PRIMARY KEY AUTOINCREMENT,case_id TEXT NOT NULL,evidence_id INTEGER,title TEXT NOT NULL,content TEXT NOT NULL,classification TEXT NOT NULL DEFAULT 'observation',created_at TEXT NOT NULL,FOREIGN KEY(case_id) REFERENCES cases(case_id),FOREIGN KEY(evidence_id) REFERENCES evidence(id));
         CREATE TABLE IF NOT EXISTS timeline_events(id INTEGER PRIMARY KEY AUTOINCREMENT,case_id TEXT NOT NULL,evidence_id INTEGER,title TEXT NOT NULL,details TEXT NOT NULL DEFAULT '',event_type TEXT NOT NULL DEFAULT 'analyst_event',source_time TEXT NOT NULL,event_time_utc TEXT NOT NULL,timezone_assumed_utc INTEGER NOT NULL DEFAULT 0,created_at TEXT NOT NULL,FOREIGN KEY(case_id) REFERENCES cases(case_id),FOREIGN KEY(evidence_id) REFERENCES evidence(id));
         CREATE TABLE IF NOT EXISTS reports(id INTEGER PRIMARY KEY AUTOINCREMENT,report_uuid TEXT NOT NULL UNIQUE,case_id TEXT NOT NULL,title TEXT NOT NULL,created_at TEXT NOT NULL,payload_json TEXT NOT NULL,payload_sha256 TEXT NOT NULL,FOREIGN KEY(case_id) REFERENCES cases(case_id));
+        CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY AUTOINCREMENT,username TEXT NOT NULL UNIQUE, password_hash TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'analyst', is_active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS audit_chain(id INTEGER PRIMARY KEY AUTOINCREMENT,actor TEXT NOT NULL,action TEXT NOT NULL,detail TEXT NOT NULL DEFAULT '',created_at TEXT NOT NULL,previous_hash TEXT NOT NULL,event_hash TEXT NOT NULL);
         """)
         conn.commit()
 

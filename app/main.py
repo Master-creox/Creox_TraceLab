@@ -1,7 +1,10 @@
 from contextlib import asynccontextmanager
-from fastapi import FastAPI,File,Form,UploadFile,Query
+from fastapi import FastAPI,File,Form,UploadFile,Query,Depends,HTTPException
 from fastapi.responses import HTMLResponse
-from app.database import init_db
+from fastapi.security import OAuth2PasswordRequestForm
+from app.database import init_db, get_db, utc_now
+from app.services.auth import (create_access_token, get_current_user, hash_password,
+                               require_admin, record_chain_event, verify_chain, verify_password)
 from app.schemas import *
 from app.services.evidence import acquire_evidence,list_evidence,get_evidence,verify_evidence,list_audit
 from app.services.analysis import analyze_evidence,get_analyses
@@ -11,7 +14,44 @@ from app.services.reports import build_report,list_reports,get_report
 async def lifespan(app:FastAPI):
     init_db()
     yield
-app=FastAPI(title="Creox TraceLab API",version="0.5.0",description="Local-first digital forensics investigation workbench.",lifespan=lifespan)
+app=FastAPI(title="Creox TraceLab API",version="0.6.0-integrated",description="Local-first digital forensics investigation workbench. M1-M5 endpoints unchanged; M6 auth + hash-chained audit added on top.",lifespan=lifespan)
+# --- M6 integration: auth + hash-chained audit (existing endpoints untouched) ---
+@app.post("/api/v1/auth/login")
+def auth_login(form: OAuth2PasswordRequestForm = Depends()):
+    with get_db() as conn:
+        row = conn.execute("SELECT * FROM users WHERE username=? AND is_active=1", (form.username,)).fetchone()
+        if row is None or not verify_password(form.password, row["password_hash"]):
+            raise HTTPException(status_code=401, detail="Incorrect username or password")
+        record_chain_event(form.username, "auth.login", "Successful login", conn=conn)
+        return {"access_token": create_access_token(row["username"], row["role"]), "token_type": "bearer", "role": row["role"]}
+@app.get("/api/v1/security/me")
+def security_me(user: dict = Depends(get_current_user)):
+    return {"username": user["username"], "role": user["role"], "active": bool(user["is_active"])}
+@app.post("/api/v1/admin/users", status_code=201)
+def admin_create_user(payload: dict, admin: dict = Depends(require_admin)):
+    username = str(payload.get("username", "")).strip()
+    password = str(payload.get("password", ""))
+    role = str(payload.get("role", "analyst"))
+    if not username or len(username) > 80 or role not in {"admin", "analyst"}:
+        raise HTTPException(status_code=400, detail="Provide a username and role 'admin' or 'analyst'")
+    if len(password) < 12:
+        raise HTTPException(status_code=400, detail="Password must be at least 12 characters")
+    with get_db() as conn:
+        if conn.execute("SELECT 1 FROM users WHERE username=?", (username,)).fetchone():
+            raise HTTPException(status_code=409, detail="Username already exists")
+        cursor = conn.execute("INSERT INTO users(username, password_hash, role, is_active, created_at) VALUES (?, ?, ?, 1, ?)",
+                              (username, hash_password(password), role, utc_now()))
+        record_chain_event(admin["username"], "user.created", f"username={username};role={role}", conn=conn)
+        row = conn.execute("SELECT * FROM users WHERE id=?", (cursor.lastrowid,)).fetchone()
+        return {"id": row["id"], "username": row["username"], "role": row["role"]}
+@app.get("/api/v1/audit/chain")
+def audit_chain(admin: dict = Depends(require_admin)):
+    with get_db() as conn:
+        return [dict(r) for r in conn.execute("SELECT * FROM audit_chain ORDER BY id DESC LIMIT 500").fetchall()]
+@app.get("/api/v1/audit/chain/verify")
+def audit_chain_verify(admin: dict = Depends(require_admin)):
+    valid, failed_id = verify_chain()
+    return {"valid": valid, "first_invalid_event_id": failed_id}
 @app.get("/health")
 def health(): return {"status":"ok","service":"Creox TraceLab","version":app.version}
 @app.post("/api/v1/cases",response_model=CaseOut,status_code=201)
