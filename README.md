@@ -13,7 +13,11 @@
 - Hash-chained security audit events with verification endpoint
 - Backup-ready local `data/` storage, Docker and CI starter workflow
 
-## Windows setup (PowerShell)
+## Installation on Windows
+
+1. Extract ZIP and open the folder in VS Code.
+
+2. Install backend dependencies:
 
 ```powershell
 python -m venv .venv
@@ -22,28 +26,32 @@ pip install -r requirements.txt
 Copy-Item .env.example .env
 ```
 
-Generate and configure secrets:
+3. Generate two security keys:
 
 ```powershell
 python -c "import secrets; print(secrets.token_urlsafe(48))"
 python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 ```
 
-Put the first output into `TRACE_LAB_JWT_SECRET` and the second into `TRACE_LAB_EVIDENCE_KEY` in `.env`. Do not commit `.env`.
+Put them in `.env`:
+- First key → `TRACE_LAB_JWT_SECRET`
+- Second key → `TRACE_LAB_EVIDENCE_KEY`
 
-Create the first admin:
+Do not commit `.env`.
+
+4. Create your administrator:
 
 ```powershell
-python scripts_create_admin.py --username admin --password "Use-A-Long-Unique-Password!"
+python scripts_create_admin.py --username admin --password "Your-Strong-Password-123!"
 ```
 
-Run backend:
+5. Start backend:
 
 ```powershell
 uvicorn app.main:app --reload
 ```
 
-Open `http://127.0.0.1:8000` for health and `http://127.0.0.1:8000/docs` for API documentation. Run frontend in a second terminal:
+6. Start frontend in another terminal:
 
 ```powershell
 cd frontend
@@ -51,7 +59,7 @@ npm install
 npm run dev
 ```
 
-Open the Vite URL shown in terminal (normally `http://localhost:5173`) and sign in with the admin credentials.
+Open the Vite URL shown in your terminal (normally `http://localhost:5173`) and sign in with the admin credentials. Open `http://127.0.0.1:8000` for health and `http://127.0.0.1:8000/docs` for API documentation.
 
 ## Create analyst accounts
 Sign in through Swagger or the dashboard, then use `POST /api/v1/admin/users` with an admin bearer token:
